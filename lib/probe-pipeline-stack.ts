@@ -91,6 +91,17 @@ export class CdPipelineStack extends cdk.Stack {
       role: pipelineRole
     });
 
+    
+    const pipelineSourceOutput = new codepipeline.Artifact();
+    const pipelineSourceAction = new codepipelineActions.GitHubSourceAction({
+      actionName: 'Checkout',
+      owner: 'uladzimir-sychou',
+      repo: 'probe-pipeline',
+      branch: 'main',
+      output: pipelineSourceOutput,
+      oauthToken: cdk.SecretValue.secretsManager('github-token')
+    });
+
     // Add the S3 source action to the pipeline
     const sourceOutput = new codepipeline.Artifact();
     const sourceAction = new codepipelineActions.S3SourceAction({
@@ -115,6 +126,11 @@ export class CdPipelineStack extends cdk.Stack {
     });
 
     // Add the stages to the pipeline
+    pipeline.addStage({
+      stageName: "PipelineSource",
+      actions: [pipelineSourceAction]
+    });
+
     pipeline.addStage({
       stageName: 'Source',
       actions: [sourceAction],
