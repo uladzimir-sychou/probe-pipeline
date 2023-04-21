@@ -127,13 +127,8 @@ export class CdPipelineStack extends cdk.Stack {
 
     // Add the stages to the pipeline
     pipeline.addStage({
-      stageName: "PipelineSource",
-      actions: [pipelineSourceAction]
-    });
-
-    pipeline.addStage({
       stageName: 'Source',
-      actions: [sourceAction],
+      actions: [pipelineSourceAction, sourceAction],
     });
 
     pipeline.addStage({
