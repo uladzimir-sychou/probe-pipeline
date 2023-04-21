@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 import * as cdk from 'aws-cdk-lib';
-import { MyPipelineStack } from '../lib/probe-pipeline-stack';
+import { CdPipelineStack } from '../lib/probe-pipeline-stack';
 
 const app = new cdk.App();
-new MyPipelineStack(app, 'MyPipelineStack', {
+new CdPipelineStack(app, 'CdPipelineStack', {
   env: {
     account: '441643927438',
     region: 'us-east-2',
