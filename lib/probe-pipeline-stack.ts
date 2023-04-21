@@ -6,6 +6,8 @@ import * as codepipelineActions from 'aws-cdk-lib/aws-codepipeline-actions';
 import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as iam from 'aws-cdk-lib/aws-iam';
+import * as codebuild from 'aws-cdk-lib/aws-codebuild';
+
 
 const lambda_function_artifact_name = 'lambda-function-v0.0.1682088759238.zip';
 
@@ -19,11 +21,11 @@ export class CdPipelineStack extends cdk.Stack {
 
 
     // Define the Lambda function
-    const lambdaFunction = new lambda.Function(this, 'GreetingLambda', {
+    const lambdaFunction = new lambda.Function(this, 'GreetingLambda-simplified', {
       runtime: lambda.Runtime.NODEJS_14_X,
-      handler: 'index.handler',
+      handler: 'dist/index.handler',
       code: lambda.Code.fromBucket(bucket, lambda_function_artifact_name),
-      functionName: 'GreetingLambda',
+      functionName: 'GreetingLambda-simplified',
       timeout: cdk.Duration.seconds(10),
       memorySize: 512,
     });
@@ -58,14 +60,14 @@ export class CdPipelineStack extends cdk.Stack {
         }),
       ],
     });
-    
+
     const pipelineRole = new iam.Role(this, 'CdGitOpsPipelineRole', {
       assumedBy: new iam.CompositePrincipal(
         new iam.ServicePrincipal('codepipeline.amazonaws.com'),
         new iam.AccountPrincipal(this.account),
       ),
     });
-    
+
     pipelineRole.attachInlinePolicy(pipelinePolicy);
 
     const s3SourceCodeRole = new iam.Role(this, 'CdGitOpsPipelineSourceS3SourceCode', {
@@ -73,7 +75,7 @@ export class CdPipelineStack extends cdk.Stack {
     });
 
     bucket.grantRead(s3SourceCodeRole);
-    
+
     s3SourceCodeRole.addToPolicy(new iam.PolicyStatement({
       resources: [bucket.bucketArn, `${bucket.bucketArn}/*`],
       actions: ['s3:GetObject'],
@@ -88,11 +90,11 @@ export class CdPipelineStack extends cdk.Stack {
 
 
     // Define the CodePipeline
-    const pipeline = new codepipeline.Pipeline(this, 'CdGitOpsPipeline', {
+    const pipeline = new codepipeline.Pipeline(this, 'CdGitOpsPipeline-simplified', {
       role: pipelineRole
     });
 
-    
+
     const pipelineSourceOutput = new codepipeline.Artifact();
     const pipelineSourceAction = new codepipelineActions.GitHubSourceAction({
       actionName: 'Checkout',
@@ -113,24 +115,53 @@ export class CdPipelineStack extends cdk.Stack {
     });
 
     // Add the deploy action to the pipeline
-    const deployAction = new codepipelineActions.CloudFormationCreateUpdateStackAction({
+    // const deployAction = new codepipelineActions.CloudFormationCreateUpdateStackAction({
+    //   actionName: 'Deploy',
+    //   stackName: 'MyLambdaStack',
+    //   templatePath: sourceOutput.atPath('cdk.out/GreetingLambdaStack.template.json'),
+    //   parameterOverrides: {
+    //     LambdaFunctionName: lambdaFunction.functionName,
+    //     LambdaFunctionCodeBucket: bucket.bucketName,
+    //     LambdaFunctionCodeKey: lambda_function_artifact_name,
+    //   },
+    //   extraInputs: [sourceOutput],
+    //   adminPermissions: true
+    // });
+
+
+    // // Create a CodeBuild project to deploy the Lambda function
+    // const buildProject = new codebuild.PipelineProject(this, 'MyCodeBuildProject');
+
+    // buildProject.addToRolePolicy(new iam.PolicyStatement({
+    //   effect: iam.Effect.ALLOW,
+    //   resources: [lambdaFunction.functionArn],
+    //   actions: ['lambda:UpdateFunctionCode', 'lambda:UpdateFunctionConfiguration'],
+    // }));
+
+    // const buildOutput = new codepipeline.Artifact();
+    // const buildAction = new codepipelineActions.CodeBuildAction({
+    //   actionName: 'Build',
+    //   project: buildProject,
+    //   input: sourceOutput,
+    //   outputs: [buildOutput],
+    // });
+
+    const deployAction = new codepipelineActions.LambdaInvokeAction({
       actionName: 'Deploy',
-      stackName: 'MyLambdaStack',
-      templatePath: sourceOutput.atPath('cdk.out/GreetingLambdaStack.template.json'),
-      parameterOverrides: {
-        LambdaFunctionName: lambdaFunction.functionName,
-        LambdaFunctionCodeBucket: bucket.bucketName,
-        LambdaFunctionCodeKey: lambda_function_artifact_name,
-      },
-      extraInputs: [sourceOutput],
-      adminPermissions: true
+      lambda: lambdaFunction,
+      inputs: [sourceOutput]
     });
 
     // Add the stages to the pipeline
     pipeline.addStage({
       stageName: 'Source',
-      actions: [pipelineSourceAction, sourceAction],
+      actions: [sourceAction],
     });
+
+    // pipeline.addStage({
+    //   stageName: 'Build',
+    //   actions: [buildAction],
+    // });
 
     pipeline.addStage({
       stageName: 'Deploy',
