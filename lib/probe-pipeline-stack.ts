@@ -7,6 +7,7 @@ import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as iam from 'aws-cdk-lib/aws-iam';
 
+const lambda_function_artifact_name = 'lambda-function-v0.0.1682088759238.zip';
 
 export class CdPipelineStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
@@ -21,7 +22,7 @@ export class CdPipelineStack extends cdk.Stack {
     const lambdaFunction = new lambda.Function(this, 'GreetingLambda', {
       runtime: lambda.Runtime.NODEJS_14_X,
       handler: 'index.handler',
-      code: lambda.Code.fromBucket(bucket, 'lambda-function-v0.0.1682085553068.zip'),
+      code: lambda.Code.fromBucket(bucket, lambda_function_artifact_name),
       functionName: 'GreetingLambda',
       timeout: cdk.Duration.seconds(10),
       memorySize: 512,
@@ -107,7 +108,7 @@ export class CdPipelineStack extends cdk.Stack {
     const sourceAction = new codepipelineActions.S3SourceAction({
       actionName: 'S3Source',
       bucket: bucket,
-      bucketKey: 'lambda-function-v0.0.1682085553068.zip',
+      bucketKey: lambda_function_artifact_name,
       output: sourceOutput,
     });
 
@@ -115,11 +116,11 @@ export class CdPipelineStack extends cdk.Stack {
     const deployAction = new codepipelineActions.CloudFormationCreateUpdateStackAction({
       actionName: 'Deploy',
       stackName: 'MyLambdaStack',
-      templatePath: sourceOutput.atPath('template.yaml'),
+      templatePath: sourceOutput.atPath('cdk.out/GreetingLambdaStack.template.json'),
       parameterOverrides: {
         LambdaFunctionName: lambdaFunction.functionName,
         LambdaFunctionCodeBucket: bucket.bucketName,
-        LambdaFunctionCodeKey: 'lambda-function-v0.0.1682085553068.zip',
+        LambdaFunctionCodeKey: lambda_function_artifact_name,
       },
       extraInputs: [sourceOutput],
       adminPermissions: true
