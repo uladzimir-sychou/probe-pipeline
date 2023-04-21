@@ -8,7 +8,7 @@ import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as codebuild from 'aws-cdk-lib/aws-codebuild';
 
-
+ 
 const lambda_function_artifact_name = 'lambda-function-v0.0.1682088759238.zip';
 
 export class CdPipelineStack extends cdk.Stack {
