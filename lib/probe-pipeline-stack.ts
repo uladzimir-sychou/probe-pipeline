@@ -9,7 +9,8 @@ import * as iam from 'aws-cdk-lib/aws-iam';
 import * as codebuild from 'aws-cdk-lib/aws-codebuild';
 
  
-const lambda_function_artifact_name = 'lambda-function-v0.0.1682088759238.zip';
+const patchVersion = '1682129687049';
+const lambda_function_artifact_name = `lambda-function-v0.0.${patchVersion}.zip`;
 
 export class CdPipelineStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
@@ -155,7 +156,7 @@ export class CdPipelineStack extends cdk.Stack {
     // Add the stages to the pipeline
     pipeline.addStage({
       stageName: 'Source',
-      actions: [sourceAction],
+      actions: [pipelineSourceAction, sourceAction],
     });
 
     // pipeline.addStage({
