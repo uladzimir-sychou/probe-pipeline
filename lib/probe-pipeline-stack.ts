@@ -7,26 +7,31 @@ import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as codebuild from 'aws-cdk-lib/aws-codebuild';
+import {load as original} from 'js-yaml';
+import { DeploymentState } from '../deployment-state/deployment-state';
 
- 
-const patchVersion = '1682129687049';
-const lambda_function_artifact_name = `lambda-function-v0.0.${patchVersion}.zip`;
+let deploymentState: DeploymentState = require('../deployment-state/deployment-state.json');
 
 export class CdPipelineStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
 
 
+    console.log(deploymentState);
     // Define the S3 bucket where the Lambda function zip file is located
     const bucket = s3.Bucket.fromBucketArn(this, 'ArtifactBucket', 'arn:aws:s3:::artifactory-s3-bucket-1681906290');
 
 
+    const lambdas = deploymentState.envs.dev.lambdaFunctions ? deploymentState.envs.dev.lambdaFunctions : [];
+    const desiredLambda = lambdas[0];
+    const lambda_function_artifact_name = desiredLambda.artifact;
+
     // Define the Lambda function
     const lambdaFunction = new lambda.Function(this, 'GreetingLambda-simplified', {
       runtime: lambda.Runtime.NODEJS_14_X,
-      handler: 'dist/index.handler',
+      handler: desiredLambda.entry,
       code: lambda.Code.fromBucket(bucket, lambda_function_artifact_name),
-      functionName: 'GreetingLambda-simplified',
+      functionName: desiredLambda.name,
       timeout: cdk.Duration.seconds(10),
       memorySize: 512,
     });
@@ -147,11 +152,11 @@ export class CdPipelineStack extends cdk.Stack {
     //   outputs: [buildOutput],
     // });
 
-    const deployAction = new codepipelineActions.LambdaInvokeAction({
-      actionName: 'Deploy',
-      lambda: lambdaFunction,
-      inputs: [sourceOutput]
-    });
+    // const deployAction = new codepipelineActions.LambdaInvokeAction({
+    //   actionName: 'Deploy',
+    //   lambda: lambdaFunction,
+    //   inputs: [sourceOutput]
+    // });
 
     // Add the stages to the pipeline
     pipeline.addStage({
@@ -164,10 +169,10 @@ export class CdPipelineStack extends cdk.Stack {
     //   actions: [buildAction],
     // });
 
-    pipeline.addStage({
-      stageName: 'Deploy',
-      actions: [deployAction],
-    });
+    // pipeline.addStage({
+    //   stageName: 'Deploy',
+    //   actions: [deployAction],
+    // });
 
   }
 }

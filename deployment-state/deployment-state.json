@@ -1,0 +1,16 @@
+{
+    "envs": {
+        "dev": {
+            "lambdaFunctions": [
+                {
+                    "name": "GreetingLambda-simplified",
+                    "artifact": "lambda-function-v0.0.1682129687049.zip",
+                    "entry": "dist/index.handler"
+                }
+            ]
+        },
+        "qa": {},
+        "stage": {},
+        "prod": {}
+    }
+}
