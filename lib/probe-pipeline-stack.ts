@@ -28,6 +28,16 @@ export class CdPipelineStack extends cdk.Stack {
 
     console.log(`Lambda ${desiredLambda}; name ${lambda_function_artifact_name}`);
 
+    const lambdaFunction = new lambda.Function(this, `CdPipeline-${desiredLambda.artifact}`, {
+      runtime: lambda.Runtime.NODEJS_14_X,
+      handler: desiredLambda.entry,
+      code: lambda.Code.fromAsset("mock"),
+      functionName: desiredLambda.name,
+      timeout: cdk.Duration.seconds(10),
+      memorySize: 512,
+    });
+
+
     const pipelinePolicy = new iam.Policy(this, 'CdGitOpsPipelinePolicy', {
       policyName: 'CdGitOpsPipelinePolicy',
       statements: [
