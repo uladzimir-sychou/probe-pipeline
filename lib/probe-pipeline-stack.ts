@@ -147,12 +147,7 @@ export class CdPipelineStack extends cdk.Stack {
               'aws lambda update-function-code --function-name $FN_NAME --s3-bucket $S3_BUCKET --s3-key $S3_BUCKET_KEY'
             ],
           },
-        },
-        artifacts: {
-          files: [
-            'lambda-function-v0.0.*.zip'
-          ]
-        },
+        }
       }),
       environment: {
         buildImage: codebuild.LinuxBuildImage.STANDARD_5_0,
