@@ -152,11 +152,11 @@ export class CdPipelineStack extends cdk.Stack {
     //   outputs: [buildOutput],
     // });
 
-    // const deployAction = new codepipelineActions.LambdaInvokeAction({
-    //   actionName: 'Deploy',
-    //   lambda: lambdaFunction,
-    //   inputs: [sourceOutput]
-    // });
+    const deployAction = new codepipelineActions.LambdaInvokeAction({
+      actionName: 'Deploy',
+      lambda: lambdaFunction,
+      inputs: [sourceOutput]
+    });
 
     // Add the stages to the pipeline
     pipeline.addStage({
@@ -169,10 +169,10 @@ export class CdPipelineStack extends cdk.Stack {
     //   actions: [buildAction],
     // });
 
-    // pipeline.addStage({
-    //   stageName: 'Deploy',
-    //   actions: [deployAction],
-    // });
+    pipeline.addStage({
+      stageName: 'Deploy',
+      actions: [deployAction],
+    });
 
   }
 }
