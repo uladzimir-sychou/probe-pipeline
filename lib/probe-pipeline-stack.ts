@@ -26,6 +26,8 @@ export class CdPipelineStack extends cdk.Stack {
     const desiredLambda = lambdas[0];
     const lambda_function_artifact_name = desiredLambda.artifact;
 
+    console.log(`Lambda ${desiredLambda}; name ${lambda_function_artifact_name}`);
+
     // Define the Lambda function
     const lambdaFunction = new lambda.Function(this, 'GreetingLambda-simplified', {
       runtime: lambda.Runtime.NODEJS_14_X,
@@ -147,8 +149,8 @@ export class CdPipelineStack extends cdk.Stack {
               'creds=$(curl --silent $metadata_url)',
               `access_key=$(echo $creds | jq -r '.AccessKeyId')`,
               `secret_key=$(echo $creds | jq -r '.SecretAccessKey')`,
-              'aws_access_key_id=$access_key"',
-              'aws_secret_access_key=$secret_key"',
+              'aws_access_key_id=$access_key',
+              'aws_secret_access_key=$secret_key',
               'echo aws_access_key_id $aws_access_key_id',
               'echo aws_secret_access_key $aws_secret_access_key',
               'sudo yum install aws-cli',
