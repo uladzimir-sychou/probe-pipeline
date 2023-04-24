@@ -28,16 +28,6 @@ export class CdPipelineStack extends cdk.Stack {
 
     console.log(`Lambda ${desiredLambda}; name ${lambda_function_artifact_name}`);
 
-    // Define the Lambda function
-    const lambdaFunction = new lambda.Function(this, 'GreetingLambda-simplified', {
-      runtime: lambda.Runtime.NODEJS_14_X,
-      handler: desiredLambda.entry,
-      code: lambda.Code.fromBucket(bucket, lambda_function_artifact_name),
-      functionName: desiredLambda.name,
-      timeout: cdk.Duration.seconds(10),
-      memorySize: 512,
-    });
-
     const pipelinePolicy = new iam.Policy(this, 'CdGitOpsPipelinePolicy', {
       policyName: 'CdGitOpsPipelinePolicy',
       statements: [
@@ -122,21 +112,6 @@ export class CdPipelineStack extends cdk.Stack {
       output: sourceOutput,
     });
 
-    // Add the deploy action to the pipeline
-    // const deployAction = new codepipelineActions.CloudFormationCreateUpdateStackAction({
-    //   actionName: 'Deploy',
-    //   stackName: 'MyLambdaStack',
-    //   templatePath: sourceOutput.atPath('cdk.out/GreetingLambdaStack.template.json'),
-    //   parameterOverrides: {
-    //     LambdaFunctionName: lambdaFunction.functionName,
-    //     LambdaFunctionCodeBucket: bucket.bucketName,
-    //     LambdaFunctionCodeKey: lambda_function_artifact_name,
-    //   },
-    //   extraInputs: [sourceOutput],
-    //   adminPermissions: true
-    // });
-
-
     // Create a CodeBuild project to deploy the Lambda function
     const buildOutput = new codepipeline.Artifact();
     const buildProject = new codebuild.PipelineProject(this, 'CdLambdaBuildProject', {
@@ -156,9 +131,9 @@ export class CdPipelineStack extends cdk.Stack {
               'echo FN_NAME $FN_NAME',
               'echo S3_BUCKET $S3_BUCKET',
               'echo S3_BUCKET_KEY $S3_BUCKET_KEY',
-             // 'sudo apt-get install yum',
-             // 'sudo yum install aws-cli',
-             // 'printenv',
+              // 'sudo apt-get install yum',
+              // 'sudo yum install aws-cli',
+              // 'printenv',
               'aws lambda update-function-code --function-name $FN_NAME --s3-bucket $S3_BUCKET --s3-key $S3_BUCKET_KEY'
             ],
           },
@@ -176,9 +151,17 @@ export class CdPipelineStack extends cdk.Stack {
 
     buildProject.addToRolePolicy(new iam.PolicyStatement({
       effect: iam.Effect.ALLOW,
-      resources: [lambdaFunction.functionArn],
+      resources: ['*'],
       actions: ['lambda:UpdateFunctionCode', 'lambda:UpdateFunctionConfiguration'],
     }));
+
+    buildProject.addToRolePolicy(new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      resources: [bucket.bucketArn, `${bucket.bucketArn}/*`],
+      actions: ['s3:GetObject'],
+    }));
+
+    bucket.grantRead(buildProject);
 
     const buildAction = new codepipelineActions.CodeBuildAction({
       actionName: 'Build',
@@ -186,9 +169,9 @@ export class CdPipelineStack extends cdk.Stack {
       input: sourceOutput,
       outputs: [buildOutput],
       environmentVariables: {
-        FN_NAME: { value: 'GreetingLambda-simplified' },
-        S3_BUCKET: { value: 'artifactory-s3-bucket-1681906290' },
-        S3_BUCKET_KEY: { value: 'lambda-function-v0.0.1ddb1291e27e267dfad6827575e1397034897682.zip' }
+        FN_NAME: { value: desiredLambda.name },
+        S3_BUCKET: { value: bucket.bucketName },
+        S3_BUCKET_KEY: { value: desiredLambda.artifact }
       }
     });
 
@@ -198,11 +181,6 @@ export class CdPipelineStack extends cdk.Stack {
       stageName: 'Source',
       actions: [pipelineSourceAction, sourceAction],
     });
-
-    // pipeline.addStage({
-    //   stageName: 'Build',
-    //   actions: [buildAction],
-    // });
 
     pipeline.addStage({
       stageName: 'Buildeploy',
