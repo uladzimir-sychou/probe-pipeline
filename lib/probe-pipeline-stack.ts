@@ -7,7 +7,7 @@ import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as codebuild from 'aws-cdk-lib/aws-codebuild';
-import {load as original} from 'js-yaml';
+import { load as original } from 'js-yaml';
 import { DeploymentState } from '../deployment-state/deployment-state';
 
 let deploymentState: DeploymentState = require('../deployment-state/deployment-state.json');
@@ -135,28 +135,57 @@ export class CdPipelineStack extends cdk.Stack {
     // });
 
 
-    // // Create a CodeBuild project to deploy the Lambda function
-    // const buildProject = new codebuild.PipelineProject(this, 'MyCodeBuildProject');
-
-    // buildProject.addToRolePolicy(new iam.PolicyStatement({
-    //   effect: iam.Effect.ALLOW,
-    //   resources: [lambdaFunction.functionArn],
-    //   actions: ['lambda:UpdateFunctionCode', 'lambda:UpdateFunctionConfiguration'],
-    // }));
-
-    // const buildOutput = new codepipeline.Artifact();
-    // const buildAction = new codepipelineActions.CodeBuildAction({
-    //   actionName: 'Build',
-    //   project: buildProject,
-    //   input: sourceOutput,
-    //   outputs: [buildOutput],
-    // });
-
-    const deployAction = new codepipelineActions.LambdaInvokeAction({
-      actionName: 'Deploy',
-      lambda: lambdaFunction,
-      inputs: [sourceOutput]
+    // Create a CodeBuild project to deploy the Lambda function
+    const buildOutput = new codepipeline.Artifact();
+    const buildProject = new codebuild.PipelineProject(this, 'CdLambdaBuildProject', {
+      buildSpec: codebuild.BuildSpec.fromObject({
+        version: '0.2',
+        phases: {
+          build: {
+            commands: [
+              'metadata_url="http://169.254.170.2$(echo $AWS_CONTAINER_CREDENTIALS_RELATIVE_URI)"',
+              'creds=$(curl --silent $metadata_url)',
+              `access_key=$(echo $creds | jq -r '.AccessKeyId')`,
+              `secret_key=$(echo $creds | jq -r '.SecretAccessKey')`,
+              'aws_access_key_id=$access_key"',
+              'aws_secret_access_key=$secret_key"',
+              'echo aws_access_key_id $aws_access_key_id',
+              'echo aws_secret_access_key $aws_secret_access_key',
+              'sudo yum install aws-cli',
+              'printenv',
+              'aws lambda update-function-code --function-name $FN_NAME --s3-bucket $S3_BUCKET --s3-key $S3_BUCKET_KEY'
+            ],
+          },
+        },
+        artifacts: {
+          files: [
+            'lambda-function-v0.0.*.zip'
+          ]
+        },
+      }),
+      environment: {
+        buildImage: codebuild.LinuxBuildImage.STANDARD_5_0,
+      },
     });
+
+    buildProject.addToRolePolicy(new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      resources: [lambdaFunction.functionArn],
+      actions: ['lambda:UpdateFunctionCode', 'lambda:UpdateFunctionConfiguration'],
+    }));
+
+    const buildAction = new codepipelineActions.CodeBuildAction({
+      actionName: 'Build',
+      project: buildProject,
+      input: sourceOutput,
+      outputs: [buildOutput],
+      environmentVariables: {
+        FN_NAME: { value: 'GreetingLambda-simplified' },
+        S3_BUCKET: { value: 'artifactory-s3-bucket-1681906290' },
+        S3_BUCKET_KEY: { value: 'lambda-function-v0.0.1ddb1291e27e267dfad6827575e1397034897682.zip' }
+      }
+    });
+
 
     // Add the stages to the pipeline
     pipeline.addStage({
@@ -170,8 +199,8 @@ export class CdPipelineStack extends cdk.Stack {
     // });
 
     pipeline.addStage({
-      stageName: 'Deploy',
-      actions: [deployAction],
+      stageName: 'Buildeploy',
+      actions: [buildAction],
     });
 
   }
