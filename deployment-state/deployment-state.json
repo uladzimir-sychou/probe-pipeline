@@ -4,7 +4,7 @@
             "lambdaFunctions": [
                 {
                     "name": "GreetingLambda-simplified",
-                    "artifact": "lambda-function-v0.0.1ddb1291e27e267dfad6827575e1397034897682.zip",
+                    "artifact": "lambda-function-v0.0.4cb84c346daddf7accc5ead1578269047bfd082a.zip",
                     "entry": "dist/index.handler"
                 }
             ]
