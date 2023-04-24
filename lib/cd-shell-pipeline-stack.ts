@@ -27,14 +27,14 @@ export class CdPipelineStack extends cdk.Stack {
 
     console.log(`Lambda ${desiredLambda}; name ${lambda_function_artifact_name}`);
 
-    // const lambdaFunction = new lambda.Function(this, `CdPipeline-${desiredLambda.artifact}`, {
-    //   runtime: lambda.Runtime.NODEJS_14_X,
-    //   handler: desiredLambda.entry,
-    //   code: lambda.Code.fromAsset("mock"),
-    //   functionName: desiredLambda.name,
-    //   timeout: cdk.Duration.seconds(10),
-    //   memorySize: 512,
-    // });
+    const lambdaFunction = new lambda.Function(this, `CdPipeline-shell-${desiredLambda.artifact}`, {
+      runtime: lambda.Runtime.NODEJS_14_X,
+      handler: desiredLambda.entry,
+      code: lambda.Code.fromAsset("mock"),
+      functionName: desiredLambda.name,
+      timeout: cdk.Duration.seconds(10),
+      memorySize: 512,
+    });
 
 
     const pipelinePolicy = new iam.Policy(this, 'CdGitOpsPipelinePolicy', {
@@ -77,25 +77,6 @@ export class CdPipelineStack extends cdk.Stack {
 
     pipelineRole.attachInlinePolicy(pipelinePolicy);
 
-    const s3SourceCodeRole = new iam.Role(this, 'CdGitOpsPipelineSourceS3SourceCode', {
-      assumedBy: new iam.ServicePrincipal('codepipeline.amazonaws.com'),
-    });
-
-    bucket.grantRead(s3SourceCodeRole);
-
-    s3SourceCodeRole.addToPolicy(new iam.PolicyStatement({
-      resources: [bucket.bucketArn, `${bucket.bucketArn}/*`],
-      actions: ['s3:GetObject'],
-    }));
-
-    // Grant the pipeline role permission to assume the S3 source code role
-    pipelineRole.addToPolicy(new iam.PolicyStatement({
-      resources: [s3SourceCodeRole.roleArn],
-      actions: ['sts:AssumeRole'],
-    }));
-
-
-
     // Define the CodePipeline
     const pipeline = new codepipeline.Pipeline(this, 'CdGitOpsPipeline-simplified', {
       role: pipelineRole
@@ -114,51 +95,19 @@ export class CdPipelineStack extends cdk.Stack {
 
 
     // Create a CodeBuild project to deploy the Lambda function
-    const pipelineBuildOutput = new codepipeline.Artifact();
-    const pipelineBuildProject = new codebuild.PipelineProject(this, 'SeltUpdatePipeline', {
+    const deployOutput = new codepipeline.Artifact();
+    const deployProject = new codebuild.PipelineProject(this, 'SeltUpdatePipeline', {
       buildSpec: codebuild.BuildSpec.fromObject({
         version: '0.2',
         phases: {
           build: {
             commands: [
-              'npm ci',
-              'npm run build',
-              'npx cdk synth',
-            ],
-          },
-        }
-      }),
-      environment: {
-        buildImage: codebuild.LinuxBuildImage.STANDARD_5_0,
-      },
-    });
-
-
-    const pipelineBuildAction = new codepipelineActions.CodeBuildAction({
-      actionName: 'Build',
-      project: pipelineBuildProject,
-      input: pipelineSourceOutput,
-      outputs: [pipelineBuildOutput]
-    });
-
-
-    // Add the S3 source action to the pipeline
-    const sourceOutput = new codepipeline.Artifact();
-    const sourceAction = new codepipelineActions.S3SourceAction({
-      actionName: 'S3Source',
-      bucket: bucket,
-      bucketKey: lambda_function_artifact_name,
-      output: sourceOutput,
-    });
-
-    // Create a CodeBuild project to deploy the Lambda function
-    const buildOutput = new codepipeline.Artifact();
-    const buildProject = new codebuild.PipelineProject(this, 'CdLambdaBuildProject', {
-      buildSpec: codebuild.BuildSpec.fromObject({
-        version: '0.2',
-        phases: {
-          build: {
-            commands: [
+              'git clone ${REPO_URL}',
+              'cd ${REPO_NAME}',
+              'cd ${REPO_NAME}/deployment-state',
+              'sudo curl -sL https://github.com/mikefarah/yq/releases/download/v4.13.2/yq_linux_amd64 -o /usr/local/bin/yq && sudo chmod +x /usr/local/bin/yq',
+              'artifact=$(yq r deployment-state.yml dev.lamdas.(name==$FN_NAME).artifact)',
+              'echo $artifact',
               'metadata_url="http://169.254.170.2$(echo $AWS_CONTAINER_CREDENTIALS_RELATIVE_URI)"',
               'creds=$(curl --silent $metadata_url)',
               `access_key=$(echo $creds | jq -r '.AccessKeyId')`,
@@ -169,11 +118,7 @@ export class CdPipelineStack extends cdk.Stack {
               'echo aws_secret_access_key $aws_secret_access_key',
               'echo FN_NAME $FN_NAME',
               'echo S3_BUCKET $S3_BUCKET',
-              'echo S3_BUCKET_KEY $S3_BUCKET_KEY',
-              // 'sudo apt-get install yum',
-              // 'sudo yum install aws-cli',
-              // 'printenv',
-              'aws lambda update-function-code --function-name $FN_NAME --s3-bucket $S3_BUCKET --s3-key $S3_BUCKET_KEY'
+              'aws lambda update-function-code --function-name $FN_NAME --s3-bucket $S3_BUCKET --s3-key $artifact'
             ],
           },
         }
@@ -183,49 +128,37 @@ export class CdPipelineStack extends cdk.Stack {
       },
     });
 
-    buildProject.addToRolePolicy(new iam.PolicyStatement({
-      effect: iam.Effect.ALLOW,
-      resources: ['*'],
-      actions: ['lambda:UpdateFunctionCode', 'lambda:UpdateFunctionConfiguration'],
-    }));
 
-    buildProject.addToRolePolicy(new iam.PolicyStatement({
+    const deployAction = new codepipelineActions.CodeBuildAction({
+      actionName: 'Deploy',
+      project: deployProject,
+      input: pipelineSourceOutput,
+      outputs: [deployOutput],
+      environmentVariables: {
+        REPO_URL: { value: 'https://github.com/uladzimir-sychou/probe-pipeline.git' },
+        REPO_NAME: { value: 'probe-pipeline' },
+        FN_NAME: { value: desiredLambda.name },
+        S3_BUCKET: { value: bucket.bucketName }
+      }
+    });
+
+    deployProject.addToRolePolicy(new iam.PolicyStatement({
       effect: iam.Effect.ALLOW,
       resources: [bucket.bucketArn, `${bucket.bucketArn}/*`],
       actions: ['s3:GetObject'],
     }));
 
-    bucket.grantRead(buildProject);
-
-    const buildAction = new codepipelineActions.CodeBuildAction({
-      actionName: 'Build',
-      project: buildProject,
-      input: sourceOutput,
-      outputs: [buildOutput],
-      environmentVariables: {
-        FN_NAME: { value: desiredLambda.name },
-        S3_BUCKET: { value: bucket.bucketName },
-        S3_BUCKET_KEY: { value: desiredLambda.artifact }
-      }
-    });
-
+    bucket.grantRead(deployProject);
 
     // Add the stages to the pipeline
     pipeline.addStage({
       stageName: 'Source',
-      actions: [pipelineSourceAction, sourceAction],
+      actions: [pipelineSourceAction],
     });
-
-
-    pipeline.addStage({
-      stageName: 'SelfUpdate',
-      actions: [pipelineBuildAction],
-    });
-
 
     pipeline.addStage({
       stageName: 'Buildeploy',
-      actions: [buildAction],
+      actions: [deployAction],
     });
 
   }
